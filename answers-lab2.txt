@@ -1,0 +1,10 @@
+1. uintptr_t
+2.
+3. Page table/directory entry flags proptect kernel memory. For example, when PTE_U is not enabled, user space cannot visit kernel memory.
+4. 2GB
+UPAGES use 4MB to store PageInfo structures. Each structure takes 8B, so 512 PageInfo strucutres. The size of a page is 4KB, so total physical memory is 512 * 4KB = 2GB.
+5. 6MB + 4KB
+4MB for PageInfo structures + 2MB for page table + 4KB for page directory
+6. After jmp *%eax
+It is possible because the low 4MB of virtual address was mapped to the low 4MB physical address.
+It is necessary because it allows user programs to use the low address space.
