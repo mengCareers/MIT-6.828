@@ -1,0 +1,5 @@
+1. Different exceptions/interrupts should be handled differently: some with error code, some without. If they share the same handler, we may need two types of Trapframes.
+
+2. user/softint is running in user mode, int instruction is system instruction. So the user cann't invoke int $14 page fault but to trap 13 general protection fault.
+If the kernel actually allows softint's int $14 instruction, we should set `SETGATE(idt[T_PGFLT], 0, GD_KT, t_pgflt, 3);`, but this will let user interfere with memory management, which is not safe.
+
