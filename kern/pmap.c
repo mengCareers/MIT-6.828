@@ -189,7 +189,7 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, UPAGES, PTSIZE, PADDR(pages), PTE_U | PTE_P);
+	boot_map_region(kern_pgdir, UPAGES, PTSIZE, PADDR(pages), PTE_U);
 
 	//////////////////////////////////////////////////////////////////////
 	// Map the 'envs' array read-only by the user at linear address UENVS
@@ -198,7 +198,7 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
-	boot_map_region(kern_pgdir, UENVS, PTSIZE, PADDR(envs), PTE_U | PTE_P);
+	boot_map_region(kern_pgdir, UENVS, PTSIZE, PADDR(envs), PTE_U);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -211,7 +211,7 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, KSTACKTOP-KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_P | PTE_W);
+	boot_map_region(kern_pgdir, KSTACKTOP-KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_W);
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -221,7 +221,7 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, KERNBASE, (1 << 31) - KERNBASE + (1 << 31), 0, PTE_W | PTE_P);
+	boot_map_region(kern_pgdir, KERNBASE, (1 << 31) - KERNBASE + (1 << 31), 0, PTE_W);
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -418,11 +418,11 @@ static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
-	int offset;
+	size_t offset;
 	pte_t *pt;
 	for (offset = 0; offset < size; offset += PGSIZE) {
 		pt = pgdir_walk(pgdir, (void *)va, 1);
-		*pt = pa|perm|PTE_P;
+		*pt = pa | perm | PTE_P;
 		pa += PGSIZE;
 		va += PGSIZE;
 	}
@@ -540,6 +540,7 @@ tlb_invalidate(pde_t *pgdir, void *va)
 	invlpg(va);
 }
 
+// first erroneous virtual address
 static uintptr_t user_mem_check_addr;
 
 //
@@ -564,6 +565,17 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
+	// Round up to the nearest multiple of n
+	void * end = (void*)ROUNDUP(va + len, PGSIZE);
+	for (; va < end; va = ROUNDUP(va + PGSIZE, PGSIZE)) {
+		// return a pointer to the page table entry (PTE) for linear address 'va'
+		pte_t *pte = pgdir_walk(env->env_pgdir, va, 0);
+		if (!pte || ( (*pte & (perm | PTE_P)) != (perm | PTE_P) )) {
+			// uintptr_t to represent the numerical values of virtual addresses
+			user_mem_check_addr = (uintptr_t)va;
+			return -E_FAULT;
+		}
+	}
 
 	return 0;
 }
