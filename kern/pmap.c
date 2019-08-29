@@ -276,6 +276,15 @@ mem_init_mp(void)
 	//
 	// LAB 4: Your code here:
 
+	// virtual address where kernel stack grows down from
+	uint32_t kstacktop_i;
+
+	// NCPU is maximum number of CPUs
+	for(int i = 0; i < NCPU; i++) {
+		kstacktop_i = KSTACKTOP - i * (KSTKSIZE + KSTKGAP);
+		// [kstacktop_i - KSTKSIZE, kstacktop_i) is backed by physical memory
+		boot_map_region(kern_pgdir, kstacktop_i - KSTKSIZE, KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W);
+	}
 }
 
 // --------------------------------------------------------------
@@ -317,10 +326,13 @@ page_init(void)
 	size_t i;
 	void* nextfree = boot_alloc(0);
 	size_t nextfreepage = PGNUM(PADDR(nextfree));
+	size_t mpentry_page = PGNUM(MPENTRY_PADDR);
+
+	// mark the physical page at MPENTRY_PADDR are in use
 	for (i = npages - 1; i > 0; i--) {
 		pages[i].pp_ref = 0;
 
-		if (i < npages_basemem || i >= nextfreepage) {
+		if ((i < npages_basemem || i >= nextfreepage) && (i != mpentry_page)) {
 			pages[i].pp_link = page_free_list;
 			page_free_list = &pages[i];
 		} else {
@@ -606,7 +618,25 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+
+	// round size up to a multiple of PGSIZE
+	size = (size_t)ROUNDUP(pa + size, PGSIZE);
+	pa = (physaddr_t)ROUNDDOWN(pa, PGSIZE);
+	size = size - pa;
+
+	// handle if this reservation would overflow MMIOLIM
+	if(base + size >= MMIOLIM)
+		panic("mmio_map_region: overflow MMIOLIM");
+
+	// reserve size bytes of virtual memory starting at base and map physical pages [pa,pa+size)
+	// with cache-disable and write-through
+	boot_map_region(kern_pgdir, base, size, pa, PTE_PCD | PTE_PWT | PTE_W);
+
+	// preserved between calls to mmio_map_region
+	base += size;
+
+	// the base of the reserved region
+	return (void *)(base - size);
 }
 
 // first erroneous virtual address

@@ -556,10 +556,14 @@ env_run(struct Env *e)
 	curenv->env_status = ENV_RUNNING;
 	curenv->env_runs++;
 
+	// switch to user's address space
 	lcr3(PADDR(curenv->env_pgdir));
+	// release the lock
+	unlock_kernel();
 
+	// restore the environment's registers and drop into user mode in the environment
 	env_pop_tf(&curenv->env_tf);
 
-	panic("env_run not yet implemented");
+	// panic("env_run not yet implemented");
 }
 

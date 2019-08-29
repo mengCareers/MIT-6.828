@@ -1,0 +1,9 @@
+1. mpentry.S is loaded by bootloader, and we use it in boot_aps.
+boot_aps uses MPBOOTPHYS to calculate absolute addresses of its symbols, so the code is executed at where we want it to.
+
+2. Data saved in kernel for different CPUs to switch to kernel mode again will be a mess even with the big kernel lock.
+
+3. Because kernel part of virtual memory of all environments are identical.
+
+4. env_run() will restore the environment's registers before drop into user mode in the environment. 
+That happens in trap(). It will copy trap frame (which is currently on the stack) into 'curenv->env_tf', so that running the environment will restart at the trap point.
